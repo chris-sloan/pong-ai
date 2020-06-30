@@ -57,6 +57,12 @@ end
     change the color, one must call `love.graphics.setColor`. As of the
     newest version of LÖVE2D, you can even draw rounded rectangles!
 ]]
-function Paddle:render()
+function Paddle:render(isAuto)
+    if isAuto == true then
+        love.graphics.setColor(1,0,0)
+    else 
+        love.graphics.setColor(1,1,1,1)    
+    end
     love.graphics.rectangle('fill', self.x, self.y, self.width, self.height)
+    love.graphics.setColor(1,1,1,1)
 end
