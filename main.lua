@@ -50,6 +50,14 @@ VIRTUAL_HEIGHT = 243
 -- paddle movement speed
 PADDLE_SPEED = 200
 
+-- paddle starting size
+PADDLE_HEIGHT = 20
+PADDLE_WIDTH = 5
+
+-- ball dimensions
+BALL_HEIGHT = 4
+BALL_WIDTH = 4
+
 --[[
     Called just once at the beginning of the game; used to set up
     game objects, variables, etc. and prepare the game world.
@@ -89,14 +97,6 @@ function love.load()
         canvas = false
     })
 
-    -- initialize our player paddles; make them global so that they can be
-    -- detected by other functions and modules
-    player1 = Paddle(10, 30, 5, 20)
-    player2 = Paddle(VIRTUAL_WIDTH - 10, VIRTUAL_HEIGHT - 30, 5, 20)
-
-    -- place a ball in the middle of the screen
-    ball = Ball(VIRTUAL_WIDTH / 2 - 2, VIRTUAL_HEIGHT / 2 - 2, 4, 4)
-
     -- initialize score variables
     player1Score = 0
     player2Score = 0
@@ -115,6 +115,26 @@ function love.load()
     -- 3. 'play' (the ball is in play, bouncing between paddles)
     -- 4. 'done' (the game is over, with a victor, ready for restart)
     gameState = 'start'
+
+    -- Game mode can either be 1 player or 2 player
+    -- Can only be changed in start state. - before a game begins.
+    -- 1 for a 1 player game against AI
+    -- 2 for a 2 player game.
+    gameMode = 2
+
+    -- Game collisions increments each time the ball collides
+    -- with a paddle. Another metric to aim to improve on each game.
+    gameRally = 0
+    highestRally = 0
+
+    -- initialize our player paddles; make them global so that they can be
+    -- detected by other functions and modules
+    player1 = Paddle(10, 30, PADDLE_WIDTH, PADDLE_HEIGHT)
+    player2 = Paddle(VIRTUAL_WIDTH - 10, VIRTUAL_HEIGHT - 30, PADDLE_WIDTH, PADDLE_HEIGHT)
+
+    -- place a ball in the middle of the screen
+    ball = Ball((VIRTUAL_WIDTH - BALL_WIDTH) / 2 , (VIRTUAL_HEIGHT - BALL_HEIGHT) / 2 , BALL_WIDTH, BALL_HEIGHT)
+
 end
 
 --[[
@@ -151,7 +171,7 @@ function love.update(dt)
         -- at which it collided, then playing a sound effect
         if ball:collides(player1) then
             ball.dx = -ball.dx * 1.03
-            ball.x = player1.x + 5
+            ball.x = player1.x + PADDLE_WIDTH
 
             -- keep velocity going in the same direction, but randomize it
             if ball.dy < 0 then
@@ -159,12 +179,12 @@ function love.update(dt)
             else
                 ball.dy = math.random(10, 150)
             end
-
+            gameRally = gameRally + 1
             sounds['paddle_hit']:play()
         end
         if ball:collides(player2) then
             ball.dx = -ball.dx * 1.03
-            ball.x = player2.x - 4
+            ball.x = player2.x - BALL_WIDTH
 
             -- keep velocity going in the same direction, but randomize it
             if ball.dy < 0 then
@@ -172,7 +192,7 @@ function love.update(dt)
             else
                 ball.dy = math.random(10, 150)
             end
-
+            gameRally = gameRally + 1
             sounds['paddle_hit']:play()
         end
 
@@ -185,8 +205,8 @@ function love.update(dt)
         end
 
         -- -4 to account for the ball's size
-        if ball.y >= VIRTUAL_HEIGHT - 4 then
-            ball.y = VIRTUAL_HEIGHT - 4
+        if ball.y >= VIRTUAL_HEIGHT - BALL_HEIGHT then
+            ball.y = VIRTUAL_HEIGHT - BALL_HEIGHT
             ball.dy = -ball.dy
             sounds['wall_hit']:play()
         end
@@ -196,6 +216,7 @@ function love.update(dt)
         if ball.x < 0 then
             servingPlayer = 1
             player2Score = player2Score + 1
+            resetRally()
             sounds['score']:play()
 
             -- if we've reached a score of 10, the game is over; set the
@@ -213,6 +234,7 @@ function love.update(dt)
         if ball.x > VIRTUAL_WIDTH then
             servingPlayer = 2
             player1Score = player1Score + 1
+            resetRally()
             sounds['score']:play()
 
             if player1Score == 10 then
@@ -225,26 +247,59 @@ function love.update(dt)
         end
     end
 
-    --
-    -- paddles can move no matter what state we're in
-    --
+    
     -- player 1
-    if love.keyboard.isDown('w') then
-        player1.dy = -PADDLE_SPEED
-    elseif love.keyboard.isDown('s') then
-        player1.dy = PADDLE_SPEED
-    else
-        player1.dy = 0
+    if gameMode == 0 then -- AI player
+        --
+        -- work out if paddle above or below the ball 
+        -- but only once the ball is 1/3 of the way across the screen
+        --
+        if player1.y + (PADDLE_HEIGHT / 2) < ball.y + (BALL_HEIGHT / 2) and ball.x < VIRTUAL_WIDTH - VIRTUAL_WIDTH / 3 then 
+            player1.dy = PADDLE_SPEED
+        elseif player1.y + (PADDLE_HEIGHT / 2) > ball.y + (BALL_HEIGHT / 2) and ball.x < VIRTUAL_WIDTH - VIRTUAL_WIDTH / 3 then
+            player1.dy = -PADDLE_SPEED
+        else
+            player1.dy = 0
+        end
+    else -- Real player 
+        --
+        -- paddles can move no matter what state we're in
+        --
+        if love.keyboard.isDown('w') then
+            player1.dy = -PADDLE_SPEED
+        elseif love.keyboard.isDown('s') then
+            player1.dy = PADDLE_SPEED
+        else
+            player1.dy = 0
+        end
     end
 
+
     -- player 2
-    if love.keyboard.isDown('up') then
-        player2.dy = -PADDLE_SPEED
-    elseif love.keyboard.isDown('down') then
-        player2.dy = PADDLE_SPEED
-    else
-        player2.dy = 0
-    end
+    if gameMode < 2 then -- AI player
+        --
+        -- work out if paddle above or below the ball 
+        -- but only once the ball is 1/3 of the way across the screen
+        --
+        if player2.y + (PADDLE_HEIGHT / 2) < ball.y + (BALL_HEIGHT / 2) and ball.x > VIRTUAL_WIDTH / 3 then 
+            player2.dy = PADDLE_SPEED
+        elseif player2.y + (PADDLE_HEIGHT / 2) > ball.y + (BALL_HEIGHT / 2) and ball.x > VIRTUAL_WIDTH / 3 then
+            player2.dy = -PADDLE_SPEED
+        else
+            player2.dy = 0
+        end
+    else -- Real player
+        --
+        -- paddles can move no matter what state we're in
+        --
+        if love.keyboard.isDown('up') then
+            player2.dy = -PADDLE_SPEED
+        elseif love.keyboard.isDown('down') then
+            player2.dy = PADDLE_SPEED
+        else
+            player2.dy = 0
+        end 
+    end 
 
     -- update our ball based on its DX and DY only if we're in play state;
     -- scale the velocity by dt so movement is framerate-independent
@@ -292,6 +347,12 @@ function love.keypressed(key)
                 servingPlayer = 1
             end
         end
+    elseif key == '0' and gameState == 'start' then
+        gameMode = 0
+    elseif key == '1' and gameState == 'start' then
+        gameMode = 1
+    elseif key == '2' and gameState == 'start' then
+        gameMode = 2
     end
 end
 
@@ -310,13 +371,14 @@ function love.draw()
         -- UI messages
         love.graphics.setFont(smallFont)
         love.graphics.printf('Welcome to Pong!', 0, 10, VIRTUAL_WIDTH, 'center')
-        love.graphics.printf('Press Enter to begin!', 0, 20, VIRTUAL_WIDTH, 'center')
+        love.graphics.printf(tostring(gameMode) .. ' player Mode, Press 0, 1 or 2 to change.', 0, 20, VIRTUAL_WIDTH, 'center')
+        love.graphics.printf('Press Enter to begin!', 0, 30, VIRTUAL_WIDTH, 'center')
     elseif gameState == 'serve' then
         -- UI messages
         love.graphics.setFont(smallFont)
         love.graphics.printf('Player ' .. tostring(servingPlayer) .. "'s serve!", 
             0, 10, VIRTUAL_WIDTH, 'center')
-        love.graphics.printf('Press Enter to serve!', 0, 20, VIRTUAL_WIDTH, 'center')
+        love.graphics.printf('Press Enter to serve!', 0, 30, VIRTUAL_WIDTH, 'center')
     elseif gameState == 'play' then
         -- no UI messages to display in play
     elseif gameState == 'done' then
@@ -331,15 +393,27 @@ function love.draw()
     -- show the score before ball is rendered so it can move over the text
     displayScore()
     
-    player1:render()
-    player2:render()
+    player1:render(gameMode < 1)
+    player2:render(gameMode < 2)
     ball:render()
 
-    -- display FPS for debugging; simply comment out to remove
+    -- displays for debugging; simply comment out to remove
     displayFPS()
+    displayHighScore()
 
     -- end our drawing to push
     push:finish()
+end
+
+--[[
+    Resets the current rally score after a player wins a point
+    after the highest rally score is updated.    
+]]
+function resetRally()
+    if gameRally > highestRally then 
+        highestRally = gameRally
+    end
+    gameRally = 0
 end
 
 --[[
@@ -362,5 +436,15 @@ function displayFPS()
     love.graphics.setFont(smallFont)
     love.graphics.setColor(0, 255, 0, 255)
     love.graphics.print('FPS: ' .. tostring(love.timer.getFPS()), 10, 10)
+    love.graphics.setColor(255, 255, 255, 255)
+end
+
+--[[
+    Display the ball/paddle collision rate for this game
+]]
+function displayHighScore()
+    love.graphics.setFont(smallFont)
+    love.graphics.setColor(0, 255, 0, 255)
+    love.graphics.print('Rally: ' .. tostring(gameRally) .. ' / High: ' .. tostring(highestRally), VIRTUAL_WIDTH - 100, 10)
     love.graphics.setColor(255, 255, 255, 255)
 end
